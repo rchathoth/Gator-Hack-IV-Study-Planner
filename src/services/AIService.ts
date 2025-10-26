@@ -1,4 +1,5 @@
 import { StudyPlanDay, TopicRecommendation, Quiz, AIResponse } from '../types';
+import generateBalancedStudyPlan from '../utils/scheduler';
 
 export class AIService {
   /**
@@ -6,77 +7,9 @@ export class AIService {
    * This is a mock implementation - replace with actual AI API call
    */
   static async generateStudyPlan(quizzes: Quiz[]): Promise<AIResponse> {
-    // Sort quizzes by date
-    const sortedQuizzes = [...quizzes].sort((a, b) => 
-      new Date(a.date).getTime() - new Date(b.date).getTime()
-    );
-
-    const studyPlan: StudyPlanDay[] = [];
-    const today = new Date();
-    
-    // Generate study plan for the next 30 days or until the last quiz
-    const lastQuizDate = new Date(sortedQuizzes[sortedQuizzes.length - 1]?.date || today.toISOString().split('T')[0]);
-    
-    for (let i = 0; i <= 30; i++) {
-      const currentDate = new Date(today);
-      currentDate.setDate(today.getDate() + i);
-      const dateString = currentDate.toISOString().split('T')[0];
-
-      if (currentDate > lastQuizDate && currentDate > today) {
-        break;
-      }
-
-      const dayPlan: StudyPlanDay = {
-        date: dateString,
-        topics: [],
-        quizzes: []
-      };
-
-      // Find quizzes happening on this day
-      const quizzesToday = sortedQuizzes.filter(q => q.date === dateString);
-      dayPlan.quizzes = quizzesToday.map(q => ({
-        id: q.id,
-        name: q.name,
-        color: q.color
-      }));
-
-      // Determine study topics based on upcoming quizzes
-      sortedQuizzes.forEach(quiz => {
-        const quizDate = new Date(quiz.date);
-        const daysUntilQuiz = Math.ceil((quizDate.getTime() - currentDate.getTime()) / (1000 * 60 * 60 * 24));
-        
-        quiz.topics.forEach((topic) => {
-          if (daysUntilQuiz > 0 && daysUntilQuiz <= 7) {
-            // Initial study for topics within 7 days
-            dayPlan.topics.push({
-              quizId: quiz.id,
-              quizName: quiz.name,
-              topicName: topic.name,
-              color: quiz.color,
-              isReview: false,
-              completed: false
-            });
-          } else if (daysUntilQuiz > 0 && daysUntilQuiz <= 14) {
-            // Review topics studied 7 days ago
-            dayPlan.topics.push({
-              quizId: quiz.id,
-              quizName: quiz.name,
-              topicName: topic.name,
-              color: quiz.color,
-              isReview: true,
-              completed: false
-            });
-          }
-        });
-      });
-
-      // Limit topics per day to avoid overload (max 4 per day)
-      if (dayPlan.topics.length > 4) {
-        dayPlan.topics = dayPlan.topics.slice(0, 4);
-      }
-
-      studyPlan.push(dayPlan);
-    }
+    // Use the balanced scheduler to generate a study plan
+    const sortedQuizzes = [...quizzes].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    const studyPlan: StudyPlanDay[] = generateBalancedStudyPlan(sortedQuizzes, 30, 4);
 
     // Generate recommendations
     const recommendations = this.generateRecommendations(sortedQuizzes);
